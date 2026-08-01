@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PIXBOX · HOST</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Monoton&family=DM+Mono:wght@400;500&family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#120308;--bg-2:#1c0612;--cream:#f4e8d0;--cream-dim:#f4e8d099;--neon:#ff2d6f;--amber:#ffb347;--green:#5fff8f;--line:#f4e8d022}
+html,body{background:var(--bg);color:var(--cream);font-family:'DM Mono',monospace;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 80% 0%,#ffb3471a,transparent 60%);pointer-events:none}
+.wrap{max-width:900px;margin:0 auto;padding:40px 24px;position:relative}
+header{border-bottom:1px solid var(--line);padding-bottom:24px;margin-bottom:32px;display:flex;align-items:baseline;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.brand{font-family:'Monoton',cursive;font-size:36px;color:var(--neon);text-shadow:0 0 16px #ff2d6f88}
+.brand small{font-family:'Bricolage Grotesque',sans-serif;font-size:11px;letter-spacing:.4em;color:var(--amber);display:block;margin-top:4px}
+.conn{font-size:12px;letter-spacing:.1em;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--cream-dim)}
+.dot.on{background:var(--green);box-shadow:0 0 10px var(--green)}.dot.off{background:var(--neon)}
+.grid{display:grid;grid-template-columns:2fr 1fr;gap:24px}
+@media(max-width:720px){.grid{grid-template-columns:1fr}}
+.card{background:var(--bg-2);border:1px solid var(--line);padding:24px}
+.card h2{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:14px;letter-spacing:.25em;text-transform:uppercase;color:var(--amber);margin-bottom:18px}
+.btn{background:var(--neon);color:var(--bg);border:none;padding:14px 24px;font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:14px;letter-spacing:.15em;text-transform:uppercase;cursor:pointer;text-decoration:none;display:inline-block}
+.btn:hover{box-shadow:0 0 24px #ff2d6f88}
+.now-playing{display:flex;gap:18px;align-items:center}
+.np-img{width:100px;height:100px;object-fit:cover;background:var(--bg);flex-shrink:0}
+.np-info{flex:1;min-width:0}
+.np-name{font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:18px;margin-bottom:4px}
+.np-artist{color:var(--cream-dim);font-size:13px}
+.progress{height:3px;background:var(--line);margin-top:12px;overflow:hidden}
+.progress>div{height:100%;background:var(--neon);transition:width 1s linear}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stat{padding:12px;background:var(--bg);border:1px solid var(--line)}
+.stat-num{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:28px;color:var(--amber);line-height:1}
+.stat-label{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--cream-dim);margin-top:6px}
+.history-item{padding:10px 0;border-bottom:1px solid var(--line);font-size:13px}
+.history-item:last-child{border-bottom:none}
+.h-name{color:var(--cream)}.h-artist{color:var(--cream-dim);font-size:11px;margin-top:2px}.h-time{color:var(--cream-dim);font-size:10px;float:right}
+.empty{color:var(--cream-dim);font-size:13px;text-align:center;padding:20px}
+.setup-steps{list-style:none;counter-reset:step}
+.setup-steps li{counter-increment:step;padding:12px 0 12px 40px;position:relative;font-size:13px;color:var(--cream-dim);border-bottom:1px dashed var(--line)}
+.setup-steps li::before{content:counter(step);position:absolute;left:0;top:12px;width:28px;height:28px;border:1px solid var(--amber);color:var(--amber);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:12px}
+.setup-steps li strong{color:var(--cream)}
+.pix-status{font-size:13px;color:var(--green)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">PIXBOX<small>HOST PANEL</small></div>
+    <div class="conn"><span class="dot" id="conn-dot"></span><span id="conn-text">verificando…</span></div>
+  </header>
+
+  <section class="card" id="setup-card" style="display:none;margin-bottom:24px">
+    <h2>Conecte o Spotify</h2>
+    <ol class="setup-steps">
+      <li>Tenha uma conta <strong>Spotify Premium</strong> no estabelecimento.</li>
+      <li>Abra o Spotify e <strong>comece a tocar qualquer música</strong> no dispositivo que ficará ligado.</li>
+      <li>Clique no botão abaixo pra autorizar.</li>
+    </ol>
+    <a href="/api/spotify/login" class="btn" style="margin-top:20px">Conectar Spotify</a>
+  </section>
+
+  <div class="grid" id="dashboard" style="display:none">
+    <section class="card">
+      <h2>Tocando agora</h2>
+      <div id="now-playing-area"><div class="empty">Nada tocando.</div></div>
+    </section>
+    <section class="card">
+      <h2>Hoje</h2>
+      <div class="stats">
+        <div class="stat"><div class="stat-num" id="stat-songs">0</div><div class="stat-label">Músicas tocadas</div></div>
+        <div class="stat"><div class="stat-num" id="stat-revenue">R$ 0</div><div class="stat-label">Faturamento</div></div>
+      </div>
+    </section>
+    <section class="card" style="grid-column:1/-1">
+      <h2>Últimas escolhidas</h2>
+      <div id="history"><div class="empty">Ainda não rolou nenhuma música hoje.</div></div>
+    </section>
+    <section class="card" style="grid-column:1/-1">
+      <h2>Status do Pix</h2>
+      <p class="pix-status">✓ Polling ativo — verificação automática a cada 3s. Nenhuma configuração extra necessária.</p>
+    </section>
+  </div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+async function checkConn(){
+  const r=await fetch('/api/spotify/status');
+  const data=await r.json();
+  const dot=$('conn-dot'),txt=$('conn-text');
+  if(data.connected){
+    dot.className='dot on';
+    txt.textContent=data.user?`${data.user.name} · ${data.user.product||'free'}`:'Conectado';
+    $('setup-card').style.display='none';
+    $('dashboard').style.display='grid';
+    if(data.user&&data.user.product!=='premium'){txt.style.color='var(--neon)';txt.textContent+=' (PRECISA SER PREMIUM)';}
+    return true;
+  } else {
+    dot.className='dot off';txt.textContent='Desconectado';
+    $('setup-card').style.display='block';$('dashboard').style.display='none';
+    return false;
+  }
+}
+async function loadNowPlaying(){
+  try{
+    const r=await fetch('/api/host/now-playing');
+    const data=await r.json();
+    const area=$('now-playing-area');
+    if(!data.connected||!data.playing){area.innerHTML='<div class="empty">Nada tocando. Comece a tocar algo no Spotify.</div>';return;}
+    const p=data.playing;
+    const pct=(p.progress_ms/p.duration_ms*100).toFixed(1);
+    area.innerHTML=`<div class="now-playing"><img style="width:100px;height:100px;object-fit:cover;background:var(--bg);flex-shrink:0" src="${p.image||''}" alt=""><div class="np-info"><div class="np-name">${esc(p.name)}</div><div class="np-artist">${esc(p.artists)}</div><div class="progress"><div style="width:${pct}%"></div></div></div></div>`;
+  }catch(e){}
+}
+async function loadStats(){
+  try{
+    const r=await fetch('/api/host/stats');
+    const d=await r.json();
+    $('stat-songs').textContent=d.queuedToday;
+    $('stat-revenue').textContent='R$ '+(d.revenueCentsToday/100).toFixed(2).replace('.',',');
+    const hist=$('history');
+    if(!d.recentQueued.length){hist.innerHTML='<div class="empty">Ainda não rolou nenhuma música hoje.</div>';}
+    else{hist.innerHTML=d.recentQueued.map(h=>{const t=new Date(h.at).toTimeString().slice(0,5);return`<div class="history-item"><span class="h-time">${t}</span><div class="h-name">${esc(h.name)}</div><div class="h-artist">${esc(h.artists)}</div></div>`;}).join('');}
+  }catch(e){}
+}
+function esc(s){return(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+async function tick(){const ok=await checkConn();if(ok){loadNowPlaying();loadStats();}}
+tick();setInterval(tick,3000);
+</script>
+</body>
+</html>
