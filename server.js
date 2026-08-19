@@ -102,7 +102,7 @@ async function createPixCharge(session) {
         last_name: 'Pixbox',
         identification: {
           type: 'CPF',
-          number: '19119119100'
+          number: '89726498058'
         }
       },
     }, {
