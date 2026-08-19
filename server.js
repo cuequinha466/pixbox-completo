@@ -19,7 +19,6 @@ const BLOCK_EXPLICIT    = process.env.BLOCK_EXPLICIT === 'true';
 const FORCE_MOCK        = process.env.FORCE_MOCK === 'true';
 const TOKENS_FILE       = path.join(__dirname, '.tokens.json');
 const MP_ACCESS_TOKEN   = process.env.MP_ACCESS_TOKEN;
-const MP_CLIENT_ID      = process.env.MP_CLIENT_ID || '7965849569201745';
 
 const BLOCKED_ARTISTS = [
   'mc kevin o chris','kevin o chris','mc ryan sp','mc cabelinho','matuê','matue',
@@ -97,13 +96,20 @@ async function createPixCharge(session) {
       description: 'Pixbox — 1 música',
       payment_method_id: 'pix',
       external_reference: session.id,
-      payer: { email: 'cliente@pixbox.app' },
+      payer: {
+        email: 'cliente@pixbox.app',
+        first_name: 'Cliente',
+        last_name: 'Pixbox',
+        identification: {
+          type: 'CPF',
+          number: '19119119100'
+        }
+      },
     }, {
       headers: {
         Authorization: `Bearer ${MP_ACCESS_TOKEN}`,
         'Content-Type': 'application/json',
         'X-Idempotency-Key': session.id,
-        'X-Platform-Id': MP_CLIENT_ID,
       }
     });
     const d = res.data;
