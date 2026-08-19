@@ -97,12 +97,12 @@ async function createPixCharge(session) {
       payment_method_id: 'pix',
       external_reference: session.id,
       payer: {
-        email: 'cliente@pixbox.app',
-        first_name: 'Cliente',
-        last_name: 'Pixbox',
+        email: 'cuequinha466@gmail.com',
+        first_name: 'Flavia',
+        last_name: 'Pires',
         identification: {
           type: 'CPF',
-          number: '89726498058'
+          number: '18413990785'
         }
       },
     }, {
