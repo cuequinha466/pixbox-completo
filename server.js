@@ -20,9 +20,6 @@ const FORCE_MOCK        = process.env.FORCE_MOCK === 'true';
 const TOKENS_FILE       = path.join(__dirname, '.tokens.json');
 const MP_ACCESS_TOKEN   = process.env.MP_ACCESS_TOKEN;
 
-// ============================================================
-// LISTA NEGRA DE ARTISTAS
-// ============================================================
 const BLOCKED_ARTISTS = [
   'mc kevin o chris','kevin o chris','mc ryan sp','mc cabelinho','matuê','matue',
   'mc poze do rodo','poze do rodo','tati quebra barraco','mc ig','mc dricka','dricka',
@@ -40,27 +37,19 @@ const BLOCKED_ARTISTS = [
 ];
 function norm(s) { return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
 function isBlockedArtist(artists) {
-  const names   = artists.map(a => norm(a.name));
+  const names = artists.map(a => norm(a.name));
   const blocked = BLOCKED_ARTISTS.map(norm);
   return names.some(n => blocked.some(b => n.includes(b) || b.includes(n)));
 }
 
-// ============================================================
-// IN-MEMORY STATE
-// ============================================================
-const sessions     = new Map();
-const mpIdToSession = new Map(); // MP payment id -> sessionId
+const sessions = new Map();
+const mpIdToSession = new Map();
 const pendingPixSessions = new Set();
 const queueHistory = [];
 const spotifyTokens = { access_token:null, refresh_token:null, expires_at:0, user:null };
 const newId = () => crypto.randomBytes(8).toString('hex');
 
-// ============================================================
-// SPOTIFY TOKEN PERSISTENCE
-// ============================================================
-function saveTokens() {
-  try { fs.writeFileSync(TOKENS_FILE, JSON.stringify(spotifyTokens)); } catch(e) {}
-}
+function saveTokens() { try { fs.writeFileSync(TOKENS_FILE, JSON.stringify(spotifyTokens)); } catch(e) {} }
 function loadTokens() {
   try {
     if (!fs.existsSync(TOKENS_FILE)) return;
@@ -96,38 +85,40 @@ async function spotifyFetch(endpoint, options={}) {
   });
 }
 
-// ============================================================
-// MERCADO PAGO PIX
-// ============================================================
 async function createPixCharge(session) {
   if (!MP_ACCESS_TOKEN || FORCE_MOCK) {
     if (FORCE_MOCK) console.log('[mp] FORCE_MOCK ativo.');
     return { mpId:'MOCK-'+session.id, brcode:'MOCK_BRCODE', qrBase64:null, mock:true };
   }
-  const res = await axios.post('https://api.mercadopago.com/v1/payments', {
-    transaction_amount: session.amount / 100,
-    description: 'Pixbox — 1 música',
-    payment_method_id: 'pix',
-    external_reference: session.id,
-    payer: { email: 'cliente@pixbox.app' },
-  }, {
-    headers: {
-      Authorization: `Bearer ${MP_ACCESS_TOKEN}`,
-      'Content-Type': 'application/json',
-      'X-Idempotency-Key': session.id,
-    }
-  });
-  const d = res.data;
-  console.log('[mp] Cobrança criada id:', d.id);
-  return {
-    mpId: String(d.id),
-    brcode: d.point_of_interaction.transaction_data.qr_code,
-    qrBase64: d.point_of_interaction.transaction_data.qr_code_base64 || null,
-    mock: false,
-  };
+  try {
+    const res = await axios.post('https://api.mercadopago.com/v1/payments', {
+      transaction_amount: session.amount / 100,
+      description: 'Pixbox — 1 música',
+      payment_method_id: 'pix',
+      external_reference: session.id,
+      payer: { email: 'cliente@pixbox.app' },
+    }, {
+      headers: {
+        Authorization: `Bearer ${MP_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json',
+        'X-Idempotency-Key': session.id,
+      }
+    });
+    const d = res.data;
+    console.log('[mp] Cobrança criada id:', d.id);
+    return {
+      mpId: String(d.id),
+      brcode: d.point_of_interaction.transaction_data.qr_code,
+      qrBase64: d.point_of_interaction.transaction_data.qr_code_base64 || null,
+      mock: false,
+    };
+  } catch(e) {
+    const detail = JSON.stringify(e.response?.data || e.message);
+    console.error('[mp] ERRO AO CRIAR COBRANÇA:', detail);
+    throw new Error(detail);
+  }
 }
 
-// Polling: verifica status do pagamento no MP a cada 3s
 async function checkPixSession(sessionId) {
   const session = sessions.get(sessionId);
   if (!session || session.status !== 'awaiting_payment') { pendingPixSessions.delete(sessionId); return; }
@@ -142,18 +133,13 @@ async function checkPixSession(sessionId) {
       pendingPixSessions.delete(sessionId);
       console.log('[poll] ✓ Pix pago! Sessão:', sessionId);
     }
-  } catch(e) { console.error('[poll] Erro:', e.message); }
+  } catch(e) { console.error('[poll] Erro:', e.response?.data || e.message); }
 }
 function startPixPolling() {
-  setInterval(async () => {
-    for (const id of pendingPixSessions) await checkPixSession(id);
-  }, 3000);
+  setInterval(async () => { for (const id of pendingPixSessions) await checkPixSession(id); }, 3000);
   console.log('[poll] Polling ativo (3s).');
 }
 
-// ============================================================
-// SPOTIFY OAUTH
-// ============================================================
 app.get('/api/spotify/login', (req,res) => {
   if (!SPOTIFY_CLIENT_ID) return res.status(500).send('SPOTIFY_CLIENT_ID não configurado.');
   const params = new URLSearchParams({ response_type:'code', client_id:SPOTIFY_CLIENT_ID, scope:'user-modify-playback-state user-read-playback-state user-read-currently-playing', redirect_uri:SPOTIFY_REDIRECT_URI });
@@ -183,9 +169,6 @@ app.get('/api/spotify/status', (req,res) => {
   res.json({ connected:!!spotifyTokens.access_token, user:spotifyTokens.user ? { name:spotifyTokens.user.display_name, product:spotifyTokens.user.product } : null });
 });
 
-// ============================================================
-// SESSIONS / PAYMENT
-// ============================================================
 app.post('/api/sessions', async (req,res) => {
   const id = newId();
   const session = { id, status:'awaiting_payment', createdAt:Date.now(), expiresAt:Date.now()+5*60*1000, amount:SONG_PRICE_CENTS, song:null, mpId:null };
@@ -210,30 +193,19 @@ app.post('/api/sessions/:id/simulate-payment', (req,res) => {
   s.status = 'paid';
   res.json({ ok:true });
 });
-
-// Webhook do Mercado Pago
 app.post('/api/webhooks/pix', async (req,res) => {
-  res.json({ ok:true }); // responde rápido pro MP
+  res.json({ ok:true });
   const id = req.body?.data?.id;
   if (!id) return;
   try {
-    const r = await axios.get(`https://api.mercadopago.com/v1/payments/${id}`, {
-      headers:{ Authorization:`Bearer ${MP_ACCESS_TOKEN}` }
-    });
+    const r = await axios.get(`https://api.mercadopago.com/v1/payments/${id}`, { headers:{ Authorization:`Bearer ${MP_ACCESS_TOKEN}` } });
     if (r.data.status === 'approved') {
-      const sessionId = mpIdToSession.get(String(id)) || mpIdToSession.get(r.data.external_reference);
-      const session = sessions.get(sessionId) || sessions.get(r.data.external_reference);
-      if (session && session.status === 'awaiting_payment') {
-        session.status = 'paid';
-        console.log('[webhook] ✓ Pago via MP webhook:', session.id);
-      }
+      const session = sessions.get(mpIdToSession.get(String(id))) || sessions.get(r.data.external_reference);
+      if (session && session.status === 'awaiting_payment') { session.status='paid'; }
     }
-  } catch(e) { console.error('[webhook] Erro:', e.message); }
+  } catch(e) { console.error('[webhook]',e.message); }
 });
 
-// ============================================================
-// SEARCH & QUEUE
-// ============================================================
 app.get('/api/sessions/:id/search', async (req,res) => {
   const s = sessions.get(req.params.id);
   if (!s) return res.status(404).json({ error:'sessão não encontrada' });
@@ -273,9 +245,6 @@ app.post('/api/sessions/:id/queue', async (req,res) => {
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
 
-// ============================================================
-// HOST DASHBOARD
-// ============================================================
 app.get('/api/host/now-playing', async (req,res) => {
   if (!spotifyTokens.access_token) return res.json({ connected:false });
   try {
@@ -295,13 +264,10 @@ app.get('/api/host/stats', (req,res) => {
   res.json({ paidToday, queuedToday, revenueCentsToday:queuedToday*SONG_PRICE_CENTS, recentQueued:queueHistory.slice(0,10) });
 });
 
-// ============================================================
-// START
-// ============================================================
 loadTokens(); startTokenKeepAlive(); startPixPolling();
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🎵 Pixbox rodando — http://127.0.0.1:${PORT}\n`);
-  if (!MP_ACCESS_TOKEN) console.log('   ⚠ MP_ACCESS_TOKEN não configurado (mock ativo).\n');
+  if (!MP_ACCESS_TOKEN) console.log('   ⚠ MP_ACCESS_TOKEN não configurado.\n');
   if (FORCE_MOCK)       console.log('   ⚠ FORCE_MOCK ativo.\n');
   if (BLOCK_EXPLICIT)   console.log('   ✓ Filtro explícitos ativo.\n');
   console.log(`   ✓ Lista negra: ${BLOCKED_ARTISTS.length} artistas.\n`);
