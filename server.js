@@ -35,6 +35,9 @@ const BLOCKED_ARTISTS = [
   'mc negão original','mc negao original','mc kako','mc kadu',
   'mc jvila','mc j vila','mc lele jp','mc gury','mc l da vinte','mc du black',
 ];
+
+const FUNK_GENRES = ['funk','funk carioca','funk ostentacao','funk melody','passinho','baile funk','funk brasileiro'];
+
 function norm(s) { return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
 function isBlockedArtist(artists) {
   const names = artists.map(a => norm(a.name));
@@ -100,10 +103,7 @@ async function createPixCharge(session) {
         email: 'cuequinha466@gmail.com',
         first_name: 'Flavia',
         last_name: 'Pires',
-        identification: {
-          type: 'CPF',
-          number: '18413990785'
-        }
+        identification: { type: 'CPF', number: '18413990785' }
       },
     }, {
       headers: {
@@ -225,14 +225,30 @@ app.get('/api/sessions/:id/search', async (req,res) => {
     if (!r.ok) return res.status(500).json({ error:await r.text() });
     const data = await r.json();
     const maxMs = MAX_SONG_DURATION_MIN*60_000;
+
+    // Busca gêneros dos artistas pra filtrar funk
+    const artistIds = [...new Set(data.tracks.items.flatMap(t=>t.artists.map(a=>a.id)))];
+    let artistGenres = {};
+    if (artistIds.length > 0) {
+      try {
+        const ar = await spotifyFetch(`/artists?ids=${artistIds.slice(0,50).join(',')}`);
+        if (ar.ok) { const ad = await ar.json(); ad.artists.forEach(a=>{ if(a) artistGenres[a.id]=a.genres||[]; }); }
+      } catch(e) {}
+    }
+
     const tracks = data.tracks.items
       .filter(t => t.duration_ms <= maxMs)
       .filter(t => !(BLOCK_EXPLICIT && t.explicit))
       .filter(t => !isBlockedArtist(t.artists))
+      .filter(t => {
+        const genres = t.artists.flatMap(a=>artistGenres[a.id]||[]).map(g=>norm(g));
+        return !genres.some(g => FUNK_GENRES.some(f=>g.includes(norm(f))));
+      })
       .map(t => ({ id:t.id, uri:t.uri, name:t.name, artists:t.artists.map(a=>a.name).join(', '), album:t.album.name, duration_ms:t.duration_ms, explicit:t.explicit, image:t.album.images.find(i=>i.width<=300)?.url||t.album.images.at(-1)?.url||null }));
     res.json({ tracks });
   } catch(e) { res.status(500).json({ error:e.message }); }
 });
+
 app.post('/api/sessions/:id/queue', async (req,res) => {
   const s = sessions.get(req.params.id);
   if (!s) return res.status(404).json({ error:'sessão não encontrada' });
@@ -279,4 +295,5 @@ app.listen(PORT, '0.0.0.0', () => {
   if (FORCE_MOCK)       console.log('   ⚠ FORCE_MOCK ativo.\n');
   if (BLOCK_EXPLICIT)   console.log('   ✓ Filtro explícitos ativo.\n');
   console.log(`   ✓ Lista negra: ${BLOCKED_ARTISTS.length} artistas.\n`);
+  console.log(`   ✓ Filtro funk ativo.\n`);
 });
